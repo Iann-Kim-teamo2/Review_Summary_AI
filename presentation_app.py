@@ -26,6 +26,18 @@ def load_data():
 data = load_data()
 df = pd.DataFrame(data)
 
+# === Global Data Preprocessing ===
+# 1. Ensure '작성일' (Date)
+today = datetime.date.today()
+if '작성일' not in df.columns:
+    df['작성일'] = [today.strftime("%Y-%m-%d")] * len(df)
+df['작성일'] = pd.to_datetime(df['작성일'], errors='coerce')
+
+# 2. Ensure '공감수' (Likes)
+if '공감수' not in df.columns:
+    df['공감수'] = 0
+df['공감수'] = pd.to_numeric(df['공감수'], errors='coerce').fillna(0).astype(int)
+
 # === Gemini AI Logic ===
 def generate_ai_report(df):
     """
@@ -157,19 +169,7 @@ with tab1:
     avg_rating = df['별점'].astype(int).mean()
     
     if apply_weight:
-        # Date Parsing & Weighting Calculation
-        import datetime
-        today = datetime.date.today()
-        
-        # Ensure '작성일' & '공감수' exists (Mock if missing)
-        if '작성일' not in df.columns:
-            df['작성일'] = [today.strftime("%Y-%m-%d")] * len(df)
-        if '공감수' not in df.columns:
-            df['공감수'] = 0 # Default parsing might result in strings or NaNs, convert safely
-            
-        # Convert 공감수 to numeric
-        df['공감수'] = pd.to_numeric(df['공감수'], errors='coerce').fillna(0).astype(int)
-            
+        # Weighting Calculation
         weights = []
         scores = df['별점'].astype(int).values
         golden_count = 0
@@ -178,14 +178,15 @@ with tab1:
             # 1. Base Weight (Time Decay)
             weight = 1.0
             try:
-                review_date = datetime.datetime.strptime(row['작성일'], "%Y-%m-%d").date()
+                # row['작성일'] is already a Timestamp due to global processing
+                review_date = row['작성일'].date()
                 days_diff = (today - review_date).days
+                # Exponential Decay
                 weight = math.exp(-decay_lambda * days_diff)
             except:
                 pass
             
             # 2. Golden Review Immunity (Likes >= 10 or Length >= 200)
-            # Check length of '본문' if available
             body_len = len(str(row.get('본문', '')))
             likes = row['공감수']
             
@@ -235,7 +236,27 @@ with tab1:
 
     # 3. Data Table
     st.subheader("상세 리뷰 데이터 (필터링 가능)")
-    st.dataframe(df)
+    st.dataframe(
+        df,
+        column_config={
+            "공감수": st.column_config.ProgressColumn(
+                "❤️ 공감수",
+                help="사용자들의 공감(좋아요) 횟수",
+                format="%d",
+                min_value=0,
+                max_value=100,
+            ),
+            "작성일": st.column_config.DateColumn(
+                "📅 작성일",
+                format="YYYY-MM-DD",
+            ),
+             "별점": st.column_config.NumberColumn(
+                "⭐ 별점",
+                format="%d점",
+            )
+        },
+        use_container_width=True
+    )
 
 # === Tab 2: How it Works ===
 with tab2:
