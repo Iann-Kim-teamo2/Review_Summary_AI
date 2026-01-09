@@ -42,7 +42,7 @@ def generate_ai_report(df):
     
     genai.configure(api_key=api_key)
     # Using gemini-1.5-flash for speed and stability
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    model = genai.GenerativeModel('gemini-2.5-flash')
     
     # 1. Prepare Prompt
     total_reviews = len(df)
