@@ -3,6 +3,7 @@ import json
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import math # Added for weighting calculation
 from advanced_process_reviews import AdvancedReviewProcessor, POS_ANCHOR, NEG_ANCHOR
 
 import os
@@ -137,11 +138,56 @@ with tab1:
 
     st.markdown("---") 
 
+    # === Sidebar: Analysis Settings ===
+    with st.sidebar:
+        st.header("⚙️ 분석 설정")
+        apply_weight = st.checkbox("최신 리뷰 가중치 적용 (Time Decay)", value=False)
+        
+        if apply_weight:
+            half_life = st.slider("반감기 (Half-life, 일)", 10, 180, 60, help="이 기간이 지나면 리뷰의 중요도가 절반으로 줄어듭니다.")
+            # Decay Constant lambda = ln(2) / half_life
+            decay_lambda = 0.693 / half_life
+            st.caption(f"📉 {half_life}일 전 리뷰는 50%만 반영됩니다.")
+
     # 1. Metrics
     col1, col2, col3 = st.columns(3)
     col1.metric("총 분석 리뷰 수", f"{len(df)}건")
+    
+    # Calculate Average Rating
     avg_rating = df['별점'].astype(int).mean()
-    col2.metric("평균 평점", f"{avg_rating:.2f}점")
+    
+    if apply_weight:
+        # Date Parsing & Weighting Calculation
+        import datetime
+        today = datetime.date.today()
+        
+        # Ensure '작성일' exists (Mock if missing)
+        if '작성일' not in df.columns:
+            df['작성일'] = [today.strftime("%Y-%m-%d")] * len(df)
+            
+        weights = []
+        scores = df['별점'].astype(int).values
+        
+        for date_str in df['작성일']:
+            try:
+                review_date = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
+                days_diff = (today - review_date).days
+                # Exponential Decay: weight = e^(-lambda * days)
+                w = math.exp(-decay_lambda * days_diff)
+                weights.append(w)
+            except:
+                weights.append(1.0) # Fallback
+                
+        # Weighted Average
+        weighted_sum = sum(s * w for s, w in zip(scores, weights))
+        total_weight = sum(weights)
+        weighted_avg = weighted_sum / total_weight if total_weight > 0 else avg_rating
+        
+        # Display with Delta
+        delta = weighted_avg - avg_rating
+        col2.metric("보정 평점 (Weighted)", f"{weighted_avg:.2f}점", f"{delta:.2f} (최신 트렌드 반영)")
+    else:
+        col2.metric("평균 평점", f"{avg_rating:.2f}점")
     
     # Flatten Tags for Analysis
     all_tags = []
