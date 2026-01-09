@@ -1,0 +1,9 @@
+# Ignore EVERYTHING by default
+*
+
+# Allow specific files (Whitelist)
+!presentation_app.py
+!advanced_process_reviews.py
+!refined_reviews_advanced.json
+!requirements.txt
+!.gitignore

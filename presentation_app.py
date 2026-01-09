@@ -41,7 +41,7 @@ def generate_ai_report(df):
         return None
     
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel('gemini-pro')
+    model = genai.GenerativeModel('gemini-2.5-flash-exp')
     
     # 1. Prepare Prompt
     total_reviews = len(df)
