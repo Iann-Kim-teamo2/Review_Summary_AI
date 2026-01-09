@@ -156,14 +156,22 @@ class AdvancedReviewProcessor:
         
         STRONG_POS = ['좋', '최고', '친절', '깔끔', '훌륭', '만족', '강추', '편하', '빠르', '새 차', '쾌적']
         STRONG_NEG = ['더럽', '더러', '최악', '비추', '냄새', '불쾌', '기스', '바가지', '실망', '별로', '불친절', '짜증']
+        NEGATIONS = ['지 않', '안 ', '못 ', '없', '아니', '별로'] # 부정어 목록
 
-        if any(k in target_text for k in STRONG_POS):
+        # 부정 표현이 포함된 경우, 룰베이스 가중치를 적용하지 않고 SBERT에게 판단을 맡깁니다.
+        # 예: "좋지 않았어요" -> '좋' 때문에 긍정 보너스를 주는 것을 방지
+        has_negation = any(n in target_text for n in NEGATIONS)
+
+        if any(k in target_text for k in STRONG_POS) and not has_negation:
             pos_score += 0.5
             print(f"       >>> Positive Keyword Bonus Applied (+0.5)")
 
-        if any(k in target_text for k in STRONG_NEG):
+        if any(k in target_text for k in STRONG_NEG) and not has_negation:
             neg_score += 0.5
             print(f"       >>> Negative Keyword Bonus Applied (+0.5)")
+        
+        if has_negation:
+            print(f"       >>> Negation detected ('{target_text}'), skipping keyword bonus.")
         
         print(f"   [Sentiment] '{category}' (Aspect: {aspect_keyword}) -> '{target_text}'\n       Pos: {pos_score:.4f} vs Neg: {neg_score:.4f}")
 
