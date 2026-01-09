@@ -105,11 +105,16 @@ def generate_review(idx):
     review['작성일'] = date.strftime("%Y-%m-%d")
     review['출처'] = random.choice(SOURCES)
     
-    # Likes generation
+    # Likes generation (Proportional to Recency + Quality)
+    # Idea: Recent reviews get more likes (Active discussion), High quality gets massive likes.
+    
+    base_likes = int((365 - delta) / 20) # Max ~18 likes for today, 0 for 1 year ago
+    randomness = random.randint(0, 5)
+    
     if is_golden:
-        review['공감수'] = random.randint(10, 100) # High likes for golden reviews
+        review['공감수'] = random.randint(50, 100) # Immunity Class (Always High)
     else:
-        review['공감수'] = random.randint(0, 5) # Low likes for normal stats
+        review['공감수'] = base_likes + randomness # Recent = Higher Likes
     
     return review
 
