@@ -182,9 +182,22 @@ class AdvancedReviewProcessor:
         for review in reviews:
             body = review['본문']
             
+            # 0. 스팸/광고 우선 탐지 (Priority Check)
+            is_spam = False
+            for spam_kw in MOCK_KEYWORDS.get('스팸/홍보', []):
+                if spam_kw in body:
+                    review['태그_ABSA'] = ['스팸/홍보'] # 단일 태그 할당
+                    is_spam = True
+                    break
+            
+            if is_spam:
+                self.apply_guardrails(review)
+                continue
+            
             # 1. 후보 속성 추출 (Mock)
             mock_aspects_found = []
             for cat, kws in MOCK_KEYWORDS.items():
+                if cat == '스팸/홍보': continue # 스팸은 위에서 처리했으므로 제외
                 for kw in kws:
                     if kw in body:
                         mock_aspects_found.append(kw)
@@ -195,6 +208,7 @@ class AdvancedReviewProcessor:
                 # 2. 카테고리 매핑
                 category = self.map_category_sbert(aspect)
                 if category == "기타": continue
+                if category == "스팸/홍보": continue # SBERT가 실수로 매핑해도 무시
                     
                 # 3. 감정 분석 (SBERT) - 키워드 전달
                 sentiment = self.analyze_sentiment_sbert(body, category, aspect_keyword=aspect)
