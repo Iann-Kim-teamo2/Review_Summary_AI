@@ -298,35 +298,49 @@ with tab3:
     
     with st.form(key='analysis_form'):
         user_input = st.text_area("리뷰 내용 입력:", key="review_input", height=100, placeholder="예시) 직원은 친절한데 차는 좀 더러웠어요.")
+        demo_rating = st.slider("이 리뷰의 별점은?", 1, 5, 3, help="별점에 따라 일관성 검사가 수행됩니다.")
         submit_button = st.form_submit_button(label='AI 분석 실행')
     
     if submit_button:
-        with st.spinner("SBERT 모델이 분석 중입니다..."):
-            # Process manually using the processor's methods
-            # 1. Mock Aspect Extraction based on keywords (Demo logic)
-            # For the demo, we replicate the process() logic simply
+        with st.spinner("SBERT + KoNLPy 분석 중..."):
             tags = []
-            
-            # Using the process logic step-by-step
-            # 1. Aspects
-            from advanced_process_reviews import MOCK_KEYWORDS
-            found_aspects = []
-            for cat, kws in MOCK_KEYWORDS.items():
-                for kw in kws:
-                    if kw in user_input:
-                        found_aspects.append(kw)
-            
-            # 2. Map & Sentiment
             results = []
-            for aspect in found_aspects:
-                cat = processor.map_category_sbert(aspect)
-                if cat == "기타": continue
+            from advanced_process_reviews import MOCK_KEYWORDS
+            
+            # 0. 스팸 우선 탐지
+            is_spam = False
+            for spam_kw in MOCK_KEYWORDS.get('스팸/홍보', []):
+                if spam_kw in user_input:
+                    tags = ['스팸/홍보']
+                    is_spam = True
+                    results.append({"속성": "스팸 감지", "카테고리": "스팸/홍보", "감정": "부정", "문장": "광고성 키워드 감지됨"})
+                    break
+            
+            if not is_spam:
+                # 1. KoNLPy 자동 속성 추출
+                found_aspects = processor.extract_aspects(user_input)
                 
-                sentiment = processor.analyze_sentiment_sbert(user_input, cat, aspect_keyword=aspect)
-                tag_str = f"{cat}({sentiment})"
-                if tag_str not in tags:
-                    tags.append(tag_str)
-                    results.append({"속성 키워드": aspect, "타겟 문장": f"...{aspect}...", "카테고리": cat, "감정": sentiment})
+                # 2. 매핑 및 감정분석
+                temp_tags = []
+                for aspect in found_aspects:
+                    cat = processor.map_category_sbert(aspect)
+                    if cat == "기타": continue
+                    if cat == "스팸/홍보": continue
+                    
+                    sentiment = processor.analyze_sentiment_sbert(user_input, cat, aspect_keyword=aspect)
+                    tag_str = f"{cat}({sentiment})"
+                    
+                    if tag_str not in temp_tags:
+                        temp_tags.append(tag_str)
+                        results.append({"속성": aspect, "카테고리": cat, "감정": sentiment, "문장": f"...{aspect}..."})
+
+                # 3. Consistency Check (별점 연동)
+                final_tags = []
+                for t in temp_tags:
+                    if demo_rating == 5 and "(부정)" in t: continue
+                    if demo_rating == 1 and "(긍정)" in t: continue
+                    final_tags.append(t)
+                tags = final_tags
             
             # PII Check
             masked_input = user_input
