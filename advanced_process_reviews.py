@@ -121,7 +121,7 @@ class AdvancedReviewProcessor:
         """
         if not SBERT_AVAILABLE:
             # Fallback to Rule-based
-            if any(x in text for x in ['좋', '최고', '친절', '깔끔', '빵빵', '편하']): return '긍정'
+            if any(x in text for x in ['최고', '친절', '깔끔', '빵빵', '편하']): return '긍정'
             if any(x in text for x in ['냄새', '불쾌', '비추', '최악', '더러', '기스']): return '부정'
             return '중립'
 
