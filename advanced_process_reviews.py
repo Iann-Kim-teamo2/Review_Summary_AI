@@ -128,15 +128,32 @@ class AdvancedReviewProcessor:
         target_text = text
         
         # 문장 단위로 분리하여 키워드가 포함된 문장만 분석 (Context Narrowing)
+        # [Advanced Splitting] 문맥 보존을 위한 문장 분리
+        # 단순 분리가 아니라, 연결 어미('~는데', '~지만')를 포함하여 문맥을 유지합니다.
+        # Capturing group ()을 사용하여 구분자도 결과에 포함시킵니다.
         if aspect_keyword:
-            # 문장 분리 (단순 정규식 + 연결 어미 '는데', '지만' 등 포함)
-            # 문맥이 섞이는 것을 방지하기 위해 연결 어미로도 나눕니다.
-            split_pattern = r'(?:[.?!,\n]|는데|지만|한데|으나|하고|했는데)'
-            sentences = re.split(split_pattern, text)
+            split_pattern = r'([.?!,\n]|는데|지만|한데|으나|하고|했는데|해서|보니|이고|더니|라서)'
+            parts = re.split(split_pattern, text)
+            
+            # [chunk, sep, chunk, sep...] 형태로 나옴 -> chunk+sep로 합치기
+            sentences = []
+            current_sent = ""
+            for part in parts:
+                if not part: continue
+                current_sent += part
+                # 구분자가 포함된 경우 문장 마무리로 간주하고 리스트에 추가
+                if re.match(split_pattern, part):
+                    sentences.append(current_sent.strip())
+                    current_sent = ""
+            
+            # 남은 조각 처리
+            if current_sent:
+                sentences.append(current_sent.strip())
+
             for s in sentences:
                 if aspect_keyword in s:
-                    # 너무 짧은 조각은 문맥이 부족할 수 있으므로 3글자 이상일 때만 채택
-                    if len(s.strip()) > 3:
+                    # 너무 짧은 조각은 문맥이 부족할 수 있으므로 2글자 이상일 때만 채택
+                    if len(s.strip()) > 2:
                         target_text = s.strip()
                         break
         
