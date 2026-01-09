@@ -219,7 +219,20 @@ class AdvancedReviewProcessor:
                 if tag_str not in tags:
                     tags.append(tag_str)
                     
-            review['태그_ABSA'] = tags
+            # [Consistency Check] 별점과 태그 감정의 일관성 보정
+            # 5점 리뷰에 '부정' 태그가 달리면 AI 환각일 가능성이 높음 -> 제거
+            # 1점 리뷰에 '긍정' 태그가 달리면 제거 (단, 반어법일 수 있으나 안전하게 제거)
+            star_rating = int(review.get('별점', 3))
+            final_tags = []
+            
+            for t in tags:
+                if star_rating == 5 and "(부정)" in t:
+                    continue # 5점 만점에 부정 태그는 말이 안 됨 (False Positive 제거)
+                if star_rating == 1 and "(긍정)" in t:
+                    continue # 1점 최악에 긍정 태그는 노이즈 (False Positive 제거)
+                final_tags.append(t)
+                
+            review['태그_ABSA'] = final_tags
             self.apply_guardrails(review)
 
         with open(output_path, 'w', encoding='utf-8') as f:
