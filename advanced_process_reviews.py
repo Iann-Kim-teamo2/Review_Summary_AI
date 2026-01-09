@@ -6,10 +6,11 @@ import math
 # SBERT 임포트 시도; 없을 경우 예외 처리
 try:
     from sentence_transformers import SentenceTransformer, util
+    from konlpy.tag import Okt # KoNLPy 추가
     SBERT_AVAILABLE = True
 except ImportError:
     SBERT_AVAILABLE = False
-    print("⚠️ 'sentence-transformers' 라이브러리를 찾을 수 없습니다. MOCK 모드로 실행합니다.")
+    print("⚠️ 라이브러리를 찾을 수 없습니다. MOCK 모드로 실행합니다.")
 
 # 설정 (Configuration)
 # 설정 (Configuration)
@@ -38,14 +39,22 @@ class AdvancedReviewProcessor:
         self.model = None
         self.category_embeddings = None
         self.anchor_embeddings = None
+        self.okt = None # KoNLPy Tagger
         
         if SBERT_AVAILABLE:
             print("⏳ SBERT 모델 로딩 중 (snunlp/KR-SBERT-V40K-klueNLI-augSTS)...")
             self.model = SentenceTransformer('snunlp/KR-SBERT-V40K-klueNLI-augSTS')
             self.category_embeddings = self.model.encode(FIXED_CATEGORIES, convert_to_tensor=True)
-            # 앵커 임베딩 미리 계산
             self.anchor_embeddings = self.model.encode([POS_ANCHOR, NEG_ANCHOR], convert_to_tensor=True)
-            print("✅ 모델 로드 및 카테고리/앵커 임베딩 완료.")
+
+            # KoNLPy 초기화
+            try:
+                self.okt = Okt()
+                print("✅ KoNLPy(Okt) 형태소 분석기 로드 완료.")
+            except Exception as e:
+                print(f"⚠️ KoNLPy 로드 실패 (Java 확인 필요): {e}")
+
+            print("✅ SBERT 모델 로드 완료.")
 
     def parse_reviews(self, input_path):
         """리뷰 파싱 로직 (공통)"""
@@ -69,21 +78,17 @@ class AdvancedReviewProcessor:
 
     def extract_aspects(self, text):
         """
-        1단계: 속성 추출 (Aspect Extraction)
-        이상적: NER 모델 사용.
-        현재: 단순 명사/키워드 추출 (Mock).
+        1단계: 속성 추출 (KoNLPy 형태소 분석)
+        문장에서 '명사(Noun)'만 추출하여 분석 대상으로 삼습니다.
         """
-        # 실제 시나리오에서는 Konlpy/Mecab을 사용하여 명사를 추출합니다.
-        # 현재는 일반적인 긍정/부정 용어를 분리하여 추출을 시뮬레이션합니다.
-        words = text.split()
-        potential_aspects = []
-        
-        # 단순 휴리스틱: 의미 없는 불용어 제외, 유의미한 명사 유지
-        # 이는 ABSA 추출 단계를 위한 플레이스홀더입니다.
-        for word in words:
-            if len(word) > 1:
-                potential_aspects.append(word)
-        return list(set(potential_aspects))
+        if self.okt:
+            nouns = self.okt.nouns(text)
+            # 1글자 명사는 노이즈가 많으므로 제외 (예: 것, 수, 나)
+            return list(set([n for n in nouns if len(n) > 1]))
+        else:
+            # Fallback (KoNLPy 로드 실패 시 단순 띄어쓰기)
+            words = text.split()
+            return [w for w in words if len(w) > 1]
 
     def map_category_sbert(self, aspect_text):
         """2단계: SBERT를 이용한 카테고리 매핑 (Fallback 포함)"""
@@ -194,23 +199,20 @@ class AdvancedReviewProcessor:
                 self.apply_guardrails(review)
                 continue
             
-            # 1. 후보 속성 추출 (Mock)
-            mock_aspects_found = []
-            for cat, kws in MOCK_KEYWORDS.items():
-                if cat == '스팸/홍보': continue # 스팸은 위에서 처리했으므로 제외
-                for kw in kws:
-                    if kw in body:
-                        mock_aspects_found.append(kw)
+            # 1. 속성 추출 (KoNLPy 형태소 분석)
+            # 이제 Mock Keywords를 뒤지지 않고, 문장에서 명사를 직접 캤냅니다.
+            aspects_found = self.extract_aspects(body)
             
             tags = []
             
-            for aspect in mock_aspects_found:
-                # 2. 카테고리 매핑
+            for aspect in aspects_found:
+                # 2. 카테고리 매핑 (SBERT)
+                # 추출된 명사(aspect)가 어떤 카테고리와 유사한지 봅니다.
                 category = self.map_category_sbert(aspect)
                 if category == "기타": continue
-                if category == "스팸/홍보": continue # SBERT가 실수로 매핑해도 무시
+                if category == "스팸/홍보": continue 
                     
-                # 3. 감정 분석 (SBERT) - 키워드 전달
+                # 3. 감정 분석 (SBERT)
                 sentiment = self.analyze_sentiment_sbert(body, category, aspect_keyword=aspect)
                 
                 tag_str = f"{category}({sentiment})"
