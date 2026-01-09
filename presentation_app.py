@@ -18,7 +18,7 @@ load_dotenv()
 st.set_page_config(page_title="AI Review Analysis Presentation", layout="wide")
 
 # Load Data
-@st.cache_data
+# Removed @st.cache_data to ensure fresh load during development
 def load_data():
     with open('refined_reviews_advanced.json', 'r', encoding='utf-8') as f:
         data = json.load(f)
