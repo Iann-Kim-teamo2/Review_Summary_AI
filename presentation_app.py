@@ -15,7 +15,15 @@ load_dotenv()
 # Page Config
 st.set_page_config(page_title="AI Review Analysis Presentation", layout="wide")
 
-# ... (Load Data function remains same) ...
+# Load Data
+@st.cache_data
+def load_data():
+    with open('refined_reviews_advanced.json', 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    return data
+
+data = load_data()
+df = pd.DataFrame(data)
 
 # === Gemini AI Logic ===
 def generate_ai_report(df):
