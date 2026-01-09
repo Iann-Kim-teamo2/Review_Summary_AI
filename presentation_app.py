@@ -30,7 +30,13 @@ def generate_ai_report(df):
     """
     통계 데이터를 바탕으로 Gemini에게 요약 리포트를 요청합니다.
     """
-    api_key = os.getenv("GEMINI_API_KEY")
+    # 1. Try Streamlit Secrets (Cloud)
+    try:
+        api_key = st.secrets["GEMINI_API_KEY"]
+    except:
+        # 2. Fallback to Environment Variable (Local .env)
+        api_key = os.getenv("GEMINI_API_KEY")
+
     if not api_key or api_key == "YOUR_API_KEY_HERE":
         return None
     
@@ -81,7 +87,12 @@ with tab1:
     st.markdown("### 🤖 AI 인사이트 리포트")
     
     report_file = "ai_report.md"
-    api_key = os.getenv("GEMINI_API_KEY")
+    
+    # Try Secrets then Env
+    try:
+        api_key = st.secrets["GEMINI_API_KEY"]
+    except:
+        api_key = os.getenv("GEMINI_API_KEY")
     
     # Refresh Button
     force_refresh = st.button("🔄 리포트 최신화 (Re-generate)")
@@ -105,7 +116,7 @@ with tab1:
     if markdown_content:
         st.info(markdown_content)
     elif not api_key or api_key == "YOUR_API_KEY_HERE":
-        st.warning("⚠️ `.env` 파일에 `GEMINI_API_KEY`를 설정하면 AI가 자동으로 요약 리포트를 작성해줍니다.")
+        st.warning("⚠️ Streamlit Cloud의 'Secrets' 또는 로컬 `.env` 파일에 `GEMINI_API_KEY`를 설정해주세요.")
     else:
         st.error("리포트 생성 실패. API Key나 네트워크 상태를 확인해주세요.")
 
