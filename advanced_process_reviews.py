@@ -4,13 +4,21 @@ import re
 import math
 
 # SBERT 임포트 시도; 없을 경우 예외 처리
+# SBERT 임포트 시도
 try:
     from sentence_transformers import SentenceTransformer, util
-    from konlpy.tag import Okt # KoNLPy 추가
     SBERT_AVAILABLE = True
 except ImportError:
     SBERT_AVAILABLE = False
-    print("⚠️ 라이브러리를 찾을 수 없습니다. MOCK 모드로 실행합니다.")
+    print("⚠️ 'sentence-transformers' 로드 실패. SBERT 기능을 사용할 수 없습니다.")
+
+# KoNLPy 임포트 시도
+try:
+    from konlpy.tag import Okt
+    KONLPY_AVAILABLE = True
+except ImportError:
+    KONLPY_AVAILABLE = False
+    print("⚠️ 'konlpy' 로드 실패. 형태소 분석을 사용할 수 없습니다.")
 
 # 설정 (Configuration)
 # 설정 (Configuration)
@@ -46,15 +54,15 @@ class AdvancedReviewProcessor:
             self.model = SentenceTransformer('snunlp/KR-SBERT-V40K-klueNLI-augSTS')
             self.category_embeddings = self.model.encode(FIXED_CATEGORIES, convert_to_tensor=True)
             self.anchor_embeddings = self.model.encode([POS_ANCHOR, NEG_ANCHOR], convert_to_tensor=True)
+            print("✅ SBERT 모델 로드 완료.")
 
+        if KONLPY_AVAILABLE:
             # KoNLPy 초기화
             try:
                 self.okt = Okt()
                 print("✅ KoNLPy(Okt) 형태소 분석기 로드 완료.")
             except Exception as e:
                 print(f"⚠️ KoNLPy 로드 실패 (Java 확인 필요): {e}")
-
-            print("✅ SBERT 모델 로드 완료.")
 
     def parse_reviews(self, input_path):
         """리뷰 파싱 로직 (공통)"""
@@ -82,13 +90,20 @@ class AdvancedReviewProcessor:
         문장에서 '명사(Noun)'만 추출하여 분석 대상으로 삼습니다.
         """
         if self.okt:
-            nouns = self.okt.nouns(text)
-            # 1글자 명사는 노이즈가 많으므로 제외 (예: 것, 수, 나)
-            return list(set([n for n in nouns if len(n) > 1]))
-        else:
-            # Fallback (KoNLPy 로드 실패 시 단순 띄어쓰기)
-            words = text.split()
-            return [w for w in words if len(w) > 1]
+            try:
+                nouns = self.okt.nouns(text)
+                # 1글자 명사는 노이즈가 많으므로 제외 (예: 것, 수, 나)
+                return list(set([n for n in nouns if len(n) > 1]))
+            except Exception as e:
+                print(f"⚠️ Okt Error: {e}")
+                # Fallback to regex if Okt fails mid-process
+                pass
+        
+        # Fallback (KoNLPy 로드 실패 시 정규식 단어 추출)
+        # 쉼표, 마침표 등을 제거하기 위해 re.findall 사용
+        import re
+        words = re.findall(r'[가-힣a-zA-Z0-9]+', text)
+        return list(set([w for w in words if len(w) > 1]))
 
     def map_category_sbert(self, aspect_text):
         """2단계: SBERT를 이용한 카테고리 매핑 (Fallback 포함)"""
