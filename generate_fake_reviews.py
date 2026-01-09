@@ -46,6 +46,21 @@ BODIES_SPAM = [
     "재택알바 모집합니다. 하루 1시간 투자. 남녀노소 누구나 가능."
 ]
 
+BODIES_LONG = [
+    "처음에는 반신반의하면서 예약했는데 막상 이용해보니 기대 이상이었습니다. "
+    "차량 상태가 정말 청결했고, 특히 담배 냄새가 전혀 나지 않아서 아이들과 함께 타기에 너무 좋았습니다. "
+    "직원분이 카시트 설치도 직접 도와주시고, 맛집 리스트까지 문자로 보내주셔서 감동받았습니다. "
+    "제주도 여행을 여러 번 왔지만 이렇게 친절한 렌터카 업체는 처음이네요. "
+    "가격도 다른 곳보다 합리적이고 셔틀버스 배차 간격도 짧아서 기다리는 시간이 거의 없었습니다. "
+    "다음 가족 여행 때도 무조건 여기서 예약할 생각입니다. 번창하세요!",
+    
+    "예전에는 대기업 렌터카만 이용했는데, 이번에 처음으로 이용해봤습니다. "
+    "솔직히 걱정을 좀 했는데 차량 연식도 23년식으로 완전 새 차였고 옵션도 풀옵션이라 운전하기 너무 편했네요. "
+    "블랙박스랑 내비게이션도 최신 버전으로 업데이트되어 있어서 길 찾기도 쉬웠습니다. "
+    "반납할 때도 깐깐하게 트집 잡는 거 없이 쿨하게 처리해주셔서 마지막까지 기분 좋게 여행을 마무리할 수 있었습니다. "
+    "지인들에게도 적극 추천하고 싶네요. 별점 5점 만점에 10점 드리고 싶습니다."
+]
+
 def generate_review(idx):
     # 60% Normal, 20% Mixed, 10% Edge(PII), 10% Spam
     rand = random.random()
@@ -53,7 +68,15 @@ def generate_review(idx):
     review = {}
     review['idx'] = idx + 1
     
-    if rand < 0.4: # Positive
+    # 10% Chance for Golden Review (Long & High Quality)
+    is_golden = False
+    
+    if rand < 0.1: # Golden Review
+        review['제목'] = "강력 추천합니다 (Golden Review)"
+        review['본문'] = random.choice(BODIES_LONG)
+        review['별점'] = '5'
+        is_golden = True
+    elif rand < 0.5: # Positive
         review['제목'] = random.choice(TITLES_POS)
         review['본문'] = random.choice(BODIES_POS)
         review['별점'] = random.choice(['4', '5'])
@@ -82,6 +105,12 @@ def generate_review(idx):
     review['작성일'] = date.strftime("%Y-%m-%d")
     review['출처'] = random.choice(SOURCES)
     
+    # Likes generation
+    if is_golden:
+        review['공감수'] = random.randint(10, 100) # High likes for golden reviews
+    else:
+        review['공감수'] = random.randint(0, 5) # Low likes for normal stats
+    
     return review
 
 def save_reviews(reviews):
@@ -93,6 +122,7 @@ def save_reviews(reviews):
             f.write(f"별점: {r['별점']}\n")
             f.write(f"작성일: {r['작성일']}\n")
             f.write(f"출처: {r['출처']}\n")
+            f.write(f"공감수: {r['공감수']}\n") # New field
             f.write("\n")
     print(f"✅ {COUNT} synthetic reviews generated at {OUTPUT_FILE}")
 

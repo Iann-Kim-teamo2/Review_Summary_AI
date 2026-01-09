@@ -161,22 +161,39 @@ with tab1:
         import datetime
         today = datetime.date.today()
         
-        # Ensure '작성일' exists (Mock if missing)
+        # Ensure '작성일' & '공감수' exists (Mock if missing)
         if '작성일' not in df.columns:
             df['작성일'] = [today.strftime("%Y-%m-%d")] * len(df)
+        if '공감수' not in df.columns:
+            df['공감수'] = 0 # Default parsing might result in strings or NaNs, convert safely
+            
+        # Convert 공감수 to numeric
+        df['공감수'] = pd.to_numeric(df['공감수'], errors='coerce').fillna(0).astype(int)
             
         weights = []
         scores = df['별점'].astype(int).values
+        golden_count = 0
         
-        for date_str in df['작성일']:
+        for idx, row in df.iterrows():
+            # 1. Base Weight (Time Decay)
+            weight = 1.0
             try:
-                review_date = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
+                review_date = datetime.datetime.strptime(row['작성일'], "%Y-%m-%d").date()
                 days_diff = (today - review_date).days
-                # Exponential Decay: weight = e^(-lambda * days)
-                w = math.exp(-decay_lambda * days_diff)
-                weights.append(w)
+                weight = math.exp(-decay_lambda * days_diff)
             except:
-                weights.append(1.0) # Fallback
+                pass
+            
+            # 2. Golden Review Immunity (Likes >= 10 or Length >= 200)
+            # Check length of '본문' if available
+            body_len = len(str(row.get('본문', '')))
+            likes = row['공감수']
+            
+            if likes >= 10 or body_len >= 200:
+                weight = 1.0 # Immunity Activated
+                golden_count += 1
+                
+            weights.append(weight)
                 
         # Weighted Average
         weighted_sum = sum(s * w for s, w in zip(scores, weights))
@@ -186,6 +203,11 @@ with tab1:
         # Display with Delta
         delta = weighted_avg - avg_rating
         col2.metric("보정 평점 (Weighted)", f"{weighted_avg:.2f}점", f"{delta:.2f} (최신 트렌드 반영)")
+        
+        # Display Shield Count
+        if golden_count > 0:
+            st.sidebar.success(f"🛡️ **{golden_count}개**의 '골든 리뷰'(고품질/인기)가 가중치 감소에서 보호되었습니다!")
+            
     else:
         col2.metric("평균 평점", f"{avg_rating:.2f}점")
     
